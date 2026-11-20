@@ -1,6 +1,7 @@
-/** Gemini selects an engine-scored option. Displayed metrics and explanations
+/** The provider selects an engine-scored option. Displayed metrics and explanations
  * are rendered from that option's fact sheet for both AI and fallback paths. */
 import { z } from 'zod';
+import type { AiConfig } from '../config.js';
 import type { FactSheet } from './factSheet.js';
 import { fallbackExplanation } from './fallback.js';
 import { verifyResponse, type VerificationResult } from './verifier.js';
@@ -16,13 +17,10 @@ export interface AiRecommendation {
   /** Verification of the text that is actually displayed. */
   verification: VerificationResult;
   model: string | null;
+  provider: AiConfig['provider'] | null;
 }
 
-export interface GeminiConfig {
-  apiKey: string;
-  model: string;
-  timeoutMs: number;
-}
+class QuotaError extends Error {}
 
 /** Shape the model must return (also sent to Gemini as the response schema). */
 const AiAnswerSchema = z.object({
@@ -47,13 +45,38 @@ function buildUserPrompt(sheet: FactSheet): string {
   return `Fact sheet:\n${JSON.stringify({ ...sheet, network })}`;
 }
 
-async function callGemini(config: GeminiConfig, sheet: FactSheet): Promise<string> {
+async function callGroq(config: AiConfig, sheet: FactSheet): Promise<string> {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    redirect: 'error',
+    signal: AbortSignal.timeout(config.timeoutMs),
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT + ' Return a JSON object with one string field named recommendedOptionId.' },
+        { role: 'user', content: buildUserPrompt(sheet) },
+      ],
+      response_format: { type: 'json_object' },
+      max_completion_tokens: 1024,
+    }),
+  });
+  if (response.status === 429) throw new QuotaError();
+  if (!response.ok) throw new Error('Groq request failed');
+  const json = await response.json() as { choices?: { message?: { content?: unknown } }[] };
+  const text = json.choices?.[0]?.message?.content;
+  if (typeof text !== 'string') throw new Error('Empty Groq response');
+  return text;
+}
+
+async function callGemini(config: AiConfig, sheet: FactSheet): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:generateContent`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   try {
     const res = await fetch(url, {
       method: 'POST',
+      redirect: 'error',
       // The key travels in a header, never in the URL (URLs end up in logs).
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': config.apiKey },
       signal: controller.signal,
@@ -93,24 +116,28 @@ function fallback(sheet: FactSheet, model: string | null, reason: string | null)
     fallbackReason: reason,
     verification: verifyResponse([fb.rationale, ...fb.tradeoffs], fb.recommendedOptionId, sheet),
     model,
+    provider: null,
   };
 }
 
-type GeminiCaller = (config: GeminiConfig, sheet: FactSheet) => Promise<string>;
+type AiCaller = (config: AiConfig, sheet: FactSheet) => Promise<string>;
 
 export async function getAiRecommendation(
-  config: GeminiConfig | null,
+  config: AiConfig | null,
   sheet: FactSheet,
-  caller: GeminiCaller = callGemini,
+  caller: AiCaller = config?.provider === 'groq' ? callGroq : callGemini,
 ): Promise<AiRecommendation> {
   if (!config) return fallback(sheet, null, null);
   if (sheet.options.length === 0) return fallback(sheet, config.model, 'No improving recovery option exists');
 
   const MAX_ATTEMPTS = 2;
-  let lastError = 'Unknown error';
+  let reason = 'Recovery provider unavailable';
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    reason = 'Recovery provider unavailable';
     try {
-      const answer = parseAiAnswer(await caller(config, sheet));
+      const text = await caller(config, sheet);
+      reason = 'Invalid recovery recommendation';
+      const answer = parseAiAnswer(text);
       const option = sheet.options.find(o => o.optionId === answer.recommendedOptionId);
       if (!option) throw new Error('Unknown recovery option');
       const explanation = fallbackExplanation(sheet, option);
@@ -120,11 +147,13 @@ export async function getAiRecommendation(
         isAiFallback: false,
         fallbackReason: null,
         model: config.model,
+        provider: config.provider,
       };
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err);
+    } catch (error) {
+      if (error instanceof QuotaError) return fallback(sheet, config.model, 'Recovery provider rate limit reached');
+      // Provider and parser errors can contain raw response text. Log only our own reason.
+      console.warn(`[ai] attempt ${attempt} rejected: ${reason}`);
     }
-    console.warn(`[ai] attempt ${attempt} rejected: ${lastError}`);
   }
-  return fallback(sheet, config.model, lastError);
+  return fallback(sheet, config.model, reason);
 }

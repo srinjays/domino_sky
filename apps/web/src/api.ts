@@ -22,6 +22,7 @@ export type {
   Kpis as SimulationKpis, CandidateEvaluation as RecoveryCandidate, RecoveryReport, SimulationResult,
 } from '@domino/engine';
 export interface AiRecommendation {
+  provider?: 'gemini' | 'groq' | null;
   recommendedOptionId: string | null;
   rationale: string;
   tradeoffs: string[];

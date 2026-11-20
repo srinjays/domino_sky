@@ -29,7 +29,7 @@
 │  │  POST /api/v1/recover/explain → AI + verification      │ │
 │  │  GET  /api/health         → health check               │ │
 │  ├────────────────────────────────────────────────────────┤ │
-│  │ AI Pipeline: FactSheet → Gemini → Verifier → Fallback │ │
+│  │ AI Pipeline: FactSheet → Groq/Gemini → verification   │ │
 │  └────────────────────────────────────────────────────────┘ │
 │               ▲                                             │
 │               │ import                                      │
@@ -82,7 +82,7 @@ domino-sky/
 │   │       ├── errors.ts    # Error handler (Zod, engine → 400)
 │   │       └── ai/
 │   │           ├── factSheet.ts  # Fact sheet builder
-│   │           ├── dispatcher.ts # Gemini API caller + orchestrator
+│   │           ├── dispatcher.ts # Groq/Gemini selection, verification and fallback
 │   │           ├── verifier.ts   # Grounding verifier
 │   │           └── fallback.ts   # Deterministic template fallback
 │   └── web/                 # @domino/web — React frontend

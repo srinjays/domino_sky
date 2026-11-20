@@ -31,10 +31,10 @@ npm run -w @domino/web dev
 # 4. Open http://localhost:5173
 ```
 
-**Optional:** Set `GEMINI_API_KEY` in `.env` for AI-powered recommendations:
+**Optional AI recommendations:** Set `GROQ_API_KEY` in the server environment (on Render, use the service's Environment settings). The default model is `openai/gpt-oss-20b`; override it with `GROQ_MODEL`. A Groq rate-limit response returns the engine recommendation immediately. Gemini is also supported via `GEMINI_API_KEY`. Groq takes priority when both keys are set. For local development:
 ```bash
 cp .env.example .env
-# Edit .env and add your Gemini API key
+# Edit .env and add your chosen provider's key
 ```
 
 The app works fully without an API key — it uses a deterministic fallback template.
@@ -81,7 +81,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full system diagram.
 | Show which flights are late | `FlightsTable` with status badges, sortable by delay |
 | Show *why* they are late | "Why?" button expands causal chain to root cause |
 | Show stranded passengers | `KpiCards` (stranded pax) + `ConnectionsTable` (MISSED/MADE) |
-| AI recovery recommendations | `RecoveryPanel` with Gemini or deterministic fallback |
+| AI recovery recommendations | `RecoveryPanel` with Groq, Gemini, or deterministic fallback |
 | Before and after comparison | Side-by-side KPI comparison in `RecoveryPanel` |
 | Deterministic calculations | All math in `@domino/engine`, tested with property-based tests |
 | AI grounding verification | Model selects a candidate ID; the server renders its engine-computed metrics |
@@ -123,7 +123,7 @@ The official organiser dataset (`flight_network.json`) contains:
 | Frontend | React 19 + Vite 6 |
 | Backend | Express 5 |
 | Validation | Zod |
-| AI | Gemini 2.5 Flash (optional) |
+| AI | Groq or Gemini (optional) |
 | Testing | Vitest + fast-check (property-based) |
 | Security | Helmet, express-rate-limit, CORS |
 

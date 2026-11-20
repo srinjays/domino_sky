@@ -41,8 +41,6 @@ export function createApp(dataset: Dataset, config: AppConfig): Express {
       maxAge: 86400,
     }),
   );
-  app.use(express.json({ limit: '32kb', strict: true }));
-
   const limiter = (limit: number) =>
     rateLimit({
       windowMs: 60_000,
@@ -53,6 +51,7 @@ export function createApp(dataset: Dataset, config: AppConfig): Express {
     });
   app.use('/api', limiter(config.env === 'test' ? 10_000 : 120));
   app.use('/api/v1/recover/explain', limiter(config.env === 'test' ? 10_000 : 15));
+  app.use('/api', express.json({ limit: '32kb', strict: true }));
 
   app.use(createRouter(dataset, config));
   app.use('/api', notFoundHandler);

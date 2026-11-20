@@ -28,7 +28,7 @@ const app = createApp(dataset, config);
 const server = app.listen(config.port, () => {
   console.log(
     `[server] Domino Sky listening on http://localhost:${config.port} (${config.env}) - ` +
-      (config.geminiApiKey ? `AI enabled (${config.geminiModel})` : 'AI disabled, deterministic explanations only'),
+      (config.ai ? `AI enabled (${config.ai.provider}, ${config.ai.model})` : 'AI disabled, deterministic explanations only'),
   );
 });
 

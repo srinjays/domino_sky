@@ -63,7 +63,7 @@ export default function RecoveryPanel({ result, baselineKpis }: Props) {
           {recommendation.isAiFallback ? (
             <span className="badge badge-fallback">Deterministic Fallback</span>
           ) : (
-            <span className="badge badge-ai">Gemini AI</span>
+            <span className="badge badge-ai">{recommendation.provider === 'groq' ? 'Groq' : 'Gemini'} AI</span>
           )}
           {recommendation.fallbackReason && (
             <span className="badge badge-missed" title={recommendation.fallbackReason}>

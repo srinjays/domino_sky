@@ -48,10 +48,6 @@ export function createRouter(dataset: Dataset, config: AppConfig): Router {
     rotations: Object.fromEntries(dataset.index.rotation),
   });
 
-  const geminiConfig = config.geminiApiKey
-    ? { apiKey: config.geminiApiKey, model: config.geminiModel, timeoutMs: config.aiTimeoutMs }
-    : null;
-
   function getReport(key: string, closures: ReturnType<typeof closureFromInput>[], weights: RecoveryReport['weights']) {
     let entry = recoverCache.get(key);
     if (!entry) {
@@ -91,7 +87,7 @@ export function createRouter(dataset: Dataset, config: AppConfig): Router {
       const closures = parsed.closures.map(closureFromInput);
       const { baseline, report } = getReport(key, closures, parsed.weights);
       const sheet = buildFactSheet(dataset, closures, baseline, report);
-      const recommendation = await getAiRecommendation(geminiConfig, sheet);
+      const recommendation = await getAiRecommendation(config.ai, sheet);
 
       let recommended: ExplainResponse['recommended'] = null;
       const id = recommendation.recommendedOptionId;
@@ -128,7 +124,7 @@ export function createRouter(dataset: Dataset, config: AppConfig): Router {
       flights: dataset.flights.length,
       airports: dataset.airports.length,
       aircraft: dataset.aircraft.length,
-      aiEnabled: geminiConfig !== null,
+      aiEnabled: config.ai !== null,
     });
   });
 

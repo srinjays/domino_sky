@@ -12,6 +12,8 @@ const ConfigSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   GEMINI_API_KEY: z.string().trim().optional(),
+  GROQ_API_KEY: z.string().trim().optional(),
+  GROQ_MODEL: z.string().trim().min(1).default('openai/gpt-oss-20b'),
   GEMINI_MODEL: z
     .string()
     .trim()
@@ -24,13 +26,18 @@ const ConfigSchema = z.object({
   STATIC_DIR: z.string().default('apps/web/dist'),
 });
 
+export interface AiConfig {
+  provider: 'gemini' | 'groq';
+  apiKey: string;
+  model: string;
+  timeoutMs: number;
+}
+
 export interface AppConfig {
   trustProxyHops: number;
   port: number;
   env: 'development' | 'production' | 'test';
-  geminiApiKey: string | null;
-  geminiModel: string;
-  aiTimeoutMs: number;
+  ai: AiConfig | null;
   corsOrigins: string[];
   datasetPath: string;
   staticDir: string;
@@ -43,13 +50,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error(`Invalid configuration: ${fields}`);
   }
   const c = parsed.data;
+  const apiKey = c.GROQ_API_KEY || c.GEMINI_API_KEY;
   return {
     trustProxyHops: c.TRUST_PROXY_HOPS,
     port: c.PORT,
     env: c.NODE_ENV,
-    geminiApiKey: c.GEMINI_API_KEY ? c.GEMINI_API_KEY : null,
-    geminiModel: c.GEMINI_MODEL,
-    aiTimeoutMs: c.AI_TIMEOUT_MS,
+    ai: apiKey ? {
+      provider: c.GROQ_API_KEY ? 'groq' : 'gemini',
+      model: c.GROQ_API_KEY ? c.GROQ_MODEL : c.GEMINI_MODEL,
+      timeoutMs: c.AI_TIMEOUT_MS,
+      apiKey,
+    } : null,
     corsOrigins: c.CORS_ORIGINS.split(',')
       .map((s) => s.trim())
       .filter(Boolean),

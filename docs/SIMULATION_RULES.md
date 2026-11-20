@@ -101,7 +101,7 @@ Engine computes SimulationResult
     ↓
 Build FactSheet (all numbers from engine)
     ↓
-Ask Gemini for one candidate ID
+Ask the configured provider for one candidate ID
     ↓
 Validate the ID and render its engine-computed metrics
     ↓
