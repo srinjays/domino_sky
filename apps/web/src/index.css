@@ -650,6 +650,9 @@ tbody tr:last-child td { border-bottom: none; }
 /* ---- Animations ---- */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .fade-in { animation: fadeIn 0.3s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .fade-in, .spinner { animation: none; }
+}
 
 /* ---- Hero section ---- */
 .hero {

@@ -7,16 +7,36 @@ interface Props {
   baselineKpis: SimulationKpis;
 }
 
-function KpiRow({ label, before, after }: { label: string; before: number | string; after: number | string }) {
+function RecoveryMetrics({
+  phase,
+  kpis,
+  score,
+}: {
+  phase: 'before' | 'after';
+  kpis: SimulationKpis;
+  score: number | undefined;
+}) {
+  const title = phase === 'before' ? 'Before Recovery' : 'After Recovery';
+  const rows = [
+    ['Delayed Flights', kpis.delayedFlights],
+    ['Cancelled', kpis.cancelledFlights],
+    ['Total Delay', formatDuration(kpis.totalDelayMin)],
+    ['Stranded Passengers', fmtNum(kpis.strandedPax)],
+    ['Broken Connections', kpis.brokenConnections],
+    ['Score', score == null ? 'Unavailable' : fmtNum(score)],
+  ] as const;
   return (
-    <div className="before-after-row">
-      <span className="before-after-label">{label}</span>
-      <span className="before-after-value">
-        <span style={{ color: 'var(--red)', marginRight: 12 }}>{before}</span>
-        →
-        <span style={{ color: 'var(--green)', marginLeft: 12 }}>{after}</span>
-      </span>
-    </div>
+    <section aria-label={title} className={`before-after-col ${phase}`}>
+      <h4 className="before-after-title">{title}</h4>
+      <dl>
+        {rows.map(([label, value]) => (
+          <div className="before-after-row" key={label}>
+            <dt className="before-after-label">{label}</dt>
+            <dd className="before-after-value">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
@@ -25,11 +45,13 @@ export default function RecoveryPanel({ result, baselineKpis }: Props) {
   const { recommendation, report } = result;
 
   const selected = result.recommended;
-  const selectedScore = selected?.score ?? (selected?.optionId === 'PLAN'
-    ? report.plan.score
-    : report.candidates.find(candidate => candidate.id === selected?.optionId)?.score);
+  const selectedScore =
+    selected?.score ??
+    (selected?.optionId === 'PLAN'
+      ? report.plan.score
+      : report.candidates.find((candidate) => candidate.id === selected?.optionId)?.score);
   const afterKpis = selected?.result.kpis ?? baselineKpis;
-  const alternatives = report.candidates.filter(c => c.id !== selected?.optionId);
+  const alternatives = report.candidates.filter((c) => c.id !== selected?.optionId);
 
   return (
     <div className="card recovery-panel fade-in">
@@ -44,13 +66,18 @@ export default function RecoveryPanel({ result, baselineKpis }: Props) {
             <span className="badge badge-ai">Gemini AI</span>
           )}
           {recommendation.fallbackReason && (
-            <span className="badge badge-missed" title={recommendation.fallbackReason}>⚠ Fallback</span>
+            <span className="badge badge-missed" title={recommendation.fallbackReason}>
+              ⚠ Fallback
+            </span>
           )}
           {recommendation.verification.passed && (
             <span className="badge badge-verified">Engine values checked</span>
           )}
           {!recommendation.verification.passed && (
-            <span className="badge badge-missed" title={recommendation.verification.errors.join('; ')}>
+            <span
+              className="badge badge-missed"
+              title={recommendation.verification.errors.join('; ')}
+            >
               ✗ Verification failed
             </span>
           )}
@@ -58,116 +85,153 @@ export default function RecoveryPanel({ result, baselineKpis }: Props) {
       </div>
 
       <>
-          <div className="recovery-rationale" dangerouslySetInnerHTML={{ __html: markdownToHtml(recommendation.rationale) }} />
+        <Rationale text={recommendation.rationale} />
 
-          {recommendation.tradeoffs.length > 0 && (
-            <ul className="tradeoff-list">
-              {recommendation.tradeoffs.map((t, i) => (
-                <li key={i}>{t}</li>
-              ))}
-            </ul>
-          )}
+        {recommendation.tradeoffs.length > 0 && (
+          <ul className="tradeoff-list">
+            {recommendation.tradeoffs.map((t, i) => (
+              <li key={i}>{t}</li>
+            ))}
+          </ul>
+        )}
 
-          {/* Before / After comparison */}
-          {selected && (
-            <div className="before-after">
-              <div className="before-after-col before">
-                <div className="before-after-title">⚡ Before Recovery</div>
-                <KpiRow label="Delayed Flights" before={baselineKpis.delayedFlights} after="" />
-                <KpiRow label="Cancelled" before={baselineKpis.cancelledFlights} after="" />
-                <KpiRow label="Total Delay" before={formatDuration(baselineKpis.totalDelayMin)} after="" />
-                <KpiRow label="Stranded Pax" before={fmtNum(baselineKpis.strandedPax)} after="" />
-                <KpiRow label="Broken Cx" before={baselineKpis.brokenConnections} after="" />
-                <div className="before-after-row">
-                  <span className="before-after-label">Score</span>
-                  <span className="before-after-value" style={{ color: 'var(--red)' }}>{fmtNum(report.baseline.score)}</span>
-                </div>
-              </div>
-              <div className="before-after-col after">
-                <div className="before-after-title">✅ After Recovery</div>
-                <KpiRow label="Delayed Flights" before="" after={afterKpis.delayedFlights} />
-                <KpiRow label="Cancelled" before="" after={afterKpis.cancelledFlights} />
-                <KpiRow label="Total Delay" before="" after={formatDuration(afterKpis.totalDelayMin)} />
-                <KpiRow label="Stranded Pax" before="" after={fmtNum(afterKpis.strandedPax)} />
-                <KpiRow label="Broken Cx" before="" after={afterKpis.brokenConnections} />
-                <div className="before-after-row">
-                  <span className="before-after-label">Score</span>
-                  <span className="before-after-value" style={{ color: 'var(--green)' }}>{selectedScore == null ? 'Unavailable' : fmtNum(selectedScore)}</span>
-                </div>
-              </div>
-            </div>
-          )}
+        {/* Before / After comparison */}
+        {selected && (
+          <div className="before-after">
+            <RecoveryMetrics phase="before" kpis={baselineKpis} score={report.baseline.score} />
+            <RecoveryMetrics phase="after" kpis={afterKpis} score={selectedScore} />
+          </div>
+        )}
 
-          {/* Candidates list */}
-          {alternatives.length > 0 && (
-            <>
-              <button
-                className="btn btn-sm btn-secondary"
-                style={{ marginTop: 'var(--space-md)' }}
-                onClick={() => setShowDetails(!showDetails)}
-              >
-                {showDetails ? '▾ Hide alternatives' : `▸ Show ${alternatives.length} alternatives`}
-              </button>
-              {showDetails && (
-                <div className="table-wrap" style={{ marginTop: 'var(--space-sm)' }}>
-                  <table aria-label="Recovery candidates">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Action</th>
-                        <th>Score</th>
-                        <th>Improvement</th>
-                        <th>Stranded Δ</th>
-                        <th>Delay Δ</th>
+        {/* Candidates list */}
+        {alternatives.length > 0 && (
+          <>
+            <button
+              className="btn btn-sm btn-secondary"
+              style={{ marginTop: 'var(--space-md)' }}
+              onClick={() => setShowDetails(!showDetails)}
+              aria-expanded={showDetails}
+            >
+              {showDetails ? '▾ Hide alternatives' : `▸ Show ${alternatives.length} alternatives`}
+            </button>
+            {showDetails && (
+              <div className="table-wrap" style={{ marginTop: 'var(--space-sm)' }}>
+                <table aria-label="Recovery candidates">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Action</th>
+                      <th>Score</th>
+                      <th>Improvement</th>
+                      <th>Stranded Δ</th>
+                      <th>Delay Δ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {alternatives.map((c, i) => (
+                      <tr key={c.id}>
+                        <td>{i + 1}</td>
+                        <td style={{ maxWidth: 300 }}>{c.description}</td>
+                        <td style={{ fontFamily: 'var(--font-mono)' }}>{fmtNum(c.score)}</td>
+                        <td
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            color: c.improvement > 0 ? 'var(--green)' : 'var(--red)',
+                          }}
+                        >
+                          {c.improvement > 0 ? '-' : '+'}
+                          {Math.abs(c.improvement)}
+                        </td>
+                        <td
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            color:
+                              (c.delta.strandedPax ?? 0) < 0
+                                ? 'var(--green)'
+                                : (c.delta.strandedPax ?? 0) > 0
+                                  ? 'var(--red)'
+                                  : undefined,
+                          }}
+                        >
+                          {(c.delta.strandedPax ?? 0) < 0 ? '' : '+'}
+                          {c.delta.strandedPax ?? 0}
+                        </td>
+                        <td
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            color:
+                              (c.delta.totalDelayMin ?? 0) < 0
+                                ? 'var(--green)'
+                                : (c.delta.totalDelayMin ?? 0) > 0
+                                  ? 'var(--red)'
+                                  : undefined,
+                          }}
+                        >
+                          {(c.delta.totalDelayMin ?? 0) < 0 ? '' : '+'}
+                          {c.delta.totalDelayMin ?? 0}m
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {alternatives.map((c, i) => (
-                        <tr key={c.id}>
-                          <td>{i + 1}</td>
-                          <td style={{ maxWidth: 300 }}>{c.description}</td>
-                          <td style={{ fontFamily: 'var(--font-mono)' }}>{fmtNum(c.score)}</td>
-                          <td style={{ fontFamily: 'var(--font-mono)', color: c.improvement > 0 ? 'var(--green)' : 'var(--red)' }}>
-                            {c.improvement > 0 ? '-' : '+'}{Math.abs(c.improvement)}
-                          </td>
-                          <td style={{ fontFamily: 'var(--font-mono)', color: (c.delta.strandedPax ?? 0) < 0 ? 'var(--green)' : (c.delta.strandedPax ?? 0) > 0 ? 'var(--red)' : undefined }}>
-                            {(c.delta.strandedPax ?? 0) < 0 ? '' : '+'}{c.delta.strandedPax ?? 0}
-                          </td>
-                          <td style={{ fontFamily: 'var(--font-mono)', color: (c.delta.totalDelayMin ?? 0) < 0 ? 'var(--green)' : (c.delta.totalDelayMin ?? 0) > 0 ? 'var(--red)' : undefined }}>
-                            {(c.delta.totalDelayMin ?? 0) < 0 ? '' : '+'}{c.delta.totalDelayMin ?? 0}m
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
 
-          {report.evaluatedCount > 0 && (
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 'var(--space-sm)' }}>
-              Evaluated {report.evaluatedCount} candidate actions · {report.improvingCount} improving ·
-              Weights: {report.weights.strandedPax}×pax + {report.weights.delayMin}×delay + {report.weights.cancellation}×cancellation
-            </p>
-          )}
+        {report.evaluatedCount > 0 && (
+          <p
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--text-muted)',
+              marginTop: 'var(--space-sm)',
+            }}
+          >
+            Evaluated {report.evaluatedCount} candidate actions · {report.improvingCount} improving
+            · Weights: {report.weights.strandedPax}×pax + {report.weights.delayMin}×delay +{' '}
+            {report.weights.cancellation}×cancellation
+          </p>
+        )}
       </>
     </div>
   );
 }
 
-/** Minimal markdown-to-HTML for the AI rationale. */
-function markdownToHtml(md: string): string {
-  return md
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/\n{2,}/g, '</p><p>')
-    .replace(/\n/g, '<br>')
-    .replace(/^/, '<p>')
-    .replace(/$/, '</p>');
+/** Render the headings and bullet lists emitted by the server as React text nodes. */
+function Rationale({ text }: { text: string }) {
+  return (
+    <div className="recovery-rationale">
+      {text.split(/\n{2,}/).map((block, index) => {
+        const [heading = '', ...lines] = block.split('\n');
+        const label = /^\*\*(.+?)\*\*(.*)$/.exec(heading);
+        const bullets = lines.filter((line) => line.startsWith('- '));
+        return (
+          <div key={index}>
+            <p>
+              {label ? (
+                <>
+                  <strong>{label[1]}</strong>
+                  {label[2]}
+                </>
+              ) : (
+                heading
+              )}
+            </p>
+            {lines
+              .filter((line) => !line.startsWith('- '))
+              .map((line, i) => (
+                <p key={i}>{line}</p>
+              ))}
+            {bullets.length > 0 && (
+              <ul>
+                {bullets.map((line, i) => (
+                  <li key={i}>{line.slice(2)}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
